@@ -561,20 +561,30 @@ class FourLineDisplayUsermod : public Usermod {
 
       // Do the actual drawing
       // First row: Icons
-      draw2x2GlyphIcons();
-      drawArrow();
-      drawStatusIcons();
+      // draw2x2GlyphIcons();
+      // drawArrow();
+      // drawStatusIcons();
 
       // Second row 
-      updateBrightness();
-      updateSpeed();
-      updateIntensity();
+      // updateBrightness();
+      // updateSpeed();
+      // updateIntensity();
+      const char* teatteri = "TEATTERI";
+      const char* aaris = "AARIRAJA";
+
+      String buf1 = teatteri;
+      String buf2 = aaris;
+      center(buf1, getCols());
+      center(buf2, getCols());
+      u8x8->setFont(u8x8_font_chroma48medium8_r);
+      u8x8->draw1x2String(0, 2, buf1.c_str());
+      u8x8->draw1x2String(0, 4, buf2.c_str());
 
       // Third row
-      showCurrentEffectOrPalette(knownPalette, JSON_palette_names, 2); //Palette info
+      // showCurrentEffectOrPalette(knownPalette, JSON_palette_names, 2); //Palette info
 
       // Fourth row
-      showCurrentEffectOrPalette(knownMode, JSON_mode_names, 3); //Effect Mode info
+      // showCurrentEffectOrPalette(knownMode, JSON_mode_names, 3); //Effect Mode info
     }
 
     void updateBrightness() {
@@ -823,6 +833,63 @@ class FourLineDisplayUsermod : public Usermod {
         String buf = line2;
         center(buf, getCols());
         drawString(0, 2*lineHeight, buf.c_str());
+      }
+      overlayUntil = millis() + showHowLong;
+      drawing = false;
+    }
+
+    void overlay(const char* line1, const char* line2, const char* line3, long showHowLong) {
+      unsigned long now = millis();
+      while (drawing && millis()-now < 250) delay(1); // wait if someone else is drawing
+      drawing = true;
+      // Turn the display back on
+      if (!wakeDisplay()) clear();
+      // Print the overlay
+      if (line1) {
+        String buf = line1;
+        center(buf, getCols());
+        drawString(0, 0, buf.c_str());
+      }
+      if (line2) {
+        String buf = line2;
+        center(buf, getCols());
+        drawString(0, 2*lineHeight, buf.c_str());
+      }
+      if (line3) {
+        String buf = line3;
+        center(buf, getCols());
+        drawString(0, 3*lineHeight, buf.c_str());
+      }
+      overlayUntil = millis() + showHowLong;
+      drawing = false;
+    }
+
+    void overlay(const char* line1, const char* line2, const char* line3, const char* line4, long showHowLong) {
+      unsigned long now = millis();
+      while (drawing && millis()-now < 250) delay(1); // wait if someone else is drawing
+      drawing = true;
+      // Turn the display back on
+      if (!wakeDisplay()) clear();
+      // Print the overlay
+      if (line1) {
+        String buf = line1;
+        center(buf, getCols());
+        drawString(0, 0, buf.c_str());
+      }
+      if (line2) {
+        String buf = line2;
+        center(buf, getCols());
+        drawString(0, lineHeight, buf.c_str());
+      }
+      if (line3) {
+        String buf = line3;
+        center(buf, getCols());
+        drawString(0, 2*lineHeight, buf.c_str());
+      }
+      if (line4) {
+        String buf = line4;
+        center(buf, getCols());
+        drawString(0, 3*lineHeight, buf.c_str());
       }
       overlayUntil = millis() + showHowLong;
       drawing = false;

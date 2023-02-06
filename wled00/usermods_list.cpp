@@ -184,6 +184,14 @@
 #include "../usermods/sht/usermod_sht.h"
 #endif
 
+#ifdef USERMOD_FIX_NETSRV
+  #include "../usermods/Fix_unreachable_netservices_v2/usermod_Fix_unreachable_netservices.h"
+#endif
+
+#ifdef USERMOD_OLED_INFO
+  #include "../usermods/oled_info/usermod_oled_info.h"
+#endif
+
 
 void registerUsermods()
 {
@@ -193,6 +201,14 @@ void registerUsermods()
    * \/ \/ \/
    */
   //usermods.add(new MyExampleUsermod());
+  #ifdef USERMOD_OLED_INFO
+  usermods.add(new UsermodOledInfo());
+  #endif
+
+  #ifdef USERMOD_FIX_NETSRV
+  usermods.add(new FixUnreachableNetServices());
+  #endif
+
   #ifdef USERMOD_BATTERY
   usermods.add(new UsermodBattery());
   #endif
