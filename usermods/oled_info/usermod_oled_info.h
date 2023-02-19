@@ -4,7 +4,7 @@
 // #include <U8g2lib.h>
 // #include <Arduino.h>
 
-#define WLED_DEBOUNCE_THRESHOLD 50 // only consider button input of at least 50ms as valid (debouncing)
+#define WLED_DEBOUNCE_THRESHOLD 20 // only consider button input of at least 50ms as valid (debouncing)
 #define INFO_TIMEOUT_MS 2000
 
 class UsermodOledInfo : public Usermod
@@ -15,7 +15,7 @@ private:
   bool initDone = false;
   unsigned long m_lastTime = 0;
   unsigned long m_LoopFrequency = 5000;
-  unsigned int showCount = 6; // How many times info will be shown before falling back to button only
+  unsigned int showCount = 4; // How many times info will be shown before falling back to button only
   const uint16_t NETWORK_MASK = 0xF00;
   const uint16_t SUBNET_MASK = 0x0F0;
   const uint16_t UNIVERSE_MASK = 0x00F;
@@ -26,11 +26,11 @@ private:
   unsigned long lastRedraw = 0;
   unsigned long overlayUntil = 0;
   int buttonPresses = 0;
+  unsigned long buttonPreviousPress[2] = {0,0};
   uint16_t refreshRate = 1000;
   uint32_t screenTimeout = 10000;
 
   String actor = "";
-  uint16_t infoTimeout = INFO_TIMEOUT_MS;
   IPAddress knownIp;
   FourLineDisplayUsermod *display;
   UsermodBattery *battery;
@@ -46,6 +46,8 @@ private:
 public:
   inline void enable(bool enable) { enabled = enable; }
   inline bool isEnabled() { return enabled; }
+
+  uint16_t infoTimeout = INFO_TIMEOUT_MS;
 
   void setup()
   {
@@ -69,13 +71,9 @@ public:
     {
       m_lastTime = millis();
       showCount--;
-      if (showCount % 2 == 0)
+      if (showCount < 3)
       {
         showActorInfo();
-      }
-      else
-      {
-        showArtNetInfo();
       }
     }
   }
@@ -118,11 +116,9 @@ public:
     // momentary button logic
     if (isButtonPressed(b))
     { // pressed
-      if (!buttonPressedBefore[b])
-        buttonPressedTime[b] = now;
-      buttonPressedBefore[b] = true;
+      buttonPressedTime[b] = now;
     }
-    else if (!isButtonPressed(b) && buttonPressedBefore[b])
+    else if (!isButtonPressed(b))
     { // released
       long dur = now - buttonPressedTime[b];
       if (dur < WLED_DEBOUNCE_THRESHOLD)
@@ -131,19 +127,16 @@ public:
         return handled;
       } // too short "press", debounce
       buttonWaitTime[b] = now;
-      buttonPressedBefore[b] = false;
     }
     // if 350ms elapsed since last press/release it is a short press
-    if (buttonWaitTime[b] && now - buttonWaitTime[b] > 350)
+    if (buttonWaitTime[b] && now - buttonWaitTime[b] > 50)
     {
-      if (now - buttonWaitTime[b] > infoTimeout)
+      if (now - buttonPreviousPress[b] > infoTimeout)
       {
         buttonPresses = 0;
       }
-      else
-      {
-        buttonPresses++;
-      }
+      buttonPreviousPress[b] = now;
+      buttonPresses++;
       buttonWaitTime[b] = 0;
       switch (buttonPresses)
       {

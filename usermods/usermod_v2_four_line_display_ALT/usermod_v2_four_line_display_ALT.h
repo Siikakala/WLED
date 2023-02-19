@@ -594,13 +594,13 @@ public:
     else if ((bri == 0 && powerON) || (bri > 0 && !powerON))
     { // trigger power icon
       powerON = !powerON;
-      drawStatusIcons();
+      //drawStatusIcons();
       return;
     }
     else if (knownnightlight != nightlightActive)
     { // trigger moon icon
       knownnightlight = nightlightActive;
-      drawStatusIcons();
+      //drawStatusIcons();
       if (knownnightlight)
       {
         String timer = PSTR("Timer On");
@@ -612,7 +612,7 @@ public:
     else if (wificonnected != interfacesInited)
     { // trigger wifi icon
       wificonnected = interfacesInited;
-      drawStatusIcons();
+      //drawStatusIcons();
       return;
     }
     else if (knownMode != effectCurrent || knownPalette != effectPalette)
@@ -623,12 +623,12 @@ public:
       {
         if (knownPalette != effectPalette)
         {
-          showCurrentEffectOrPalette(effectPalette, JSON_palette_names, 2);
+          //showCurrentEffectOrPalette(effectPalette, JSON_palette_names, 2);
           knownPalette = effectPalette;
         }
         if (knownMode != effectCurrent)
         {
-          showCurrentEffectOrPalette(effectCurrent, JSON_mode_names, 3);
+          //showCurrentEffectOrPalette(effectCurrent, JSON_mode_names, 3);
           knownMode = effectCurrent;
         }
         lastRedraw = now;
@@ -643,7 +643,7 @@ public:
       }
       else if (!displayTurnedOff)
       {
-        updateBrightness();
+        //updateBrightness();
         lastRedraw = now;
         return;
       }
@@ -654,7 +654,7 @@ public:
         needRedraw = true;
       else
       {
-        updateSpeed();
+        //updateSpeed();
         lastRedraw = now;
         return;
       }
@@ -665,7 +665,7 @@ public:
         needRedraw = true;
       else
       {
-        updateIntensity();
+        //updateIntensity();
         lastRedraw = now;
         return;
       }
