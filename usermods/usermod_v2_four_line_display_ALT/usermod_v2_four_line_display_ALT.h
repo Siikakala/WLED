@@ -2,6 +2,7 @@
 
 #include "wled.h"
 #include <U8x8lib.h> // from https://github.com/olikraus/u8g2/
+#include <U8g2lib.h>
 #include "4LD_wled_fonts.c"
 
 //
@@ -110,7 +111,8 @@ private:
   volatile bool drawing = false;
 
   // HW interface & configuration
-  U8X8 *u8x8 = nullptr; // pointer to U8X8 display object
+  // U8X8 *u8x8 = nullptr; // pointer to U8X8 display object
+  U8G2 *u8g2 = nullptr;
 
 #ifndef FLD_SPI_DEFAULT
   int8_t ioPin[5] = {FLD_PIN_SCL, FLD_PIN_SDA, -1, -1, -1}; // I2C pins: SCL, SDA
@@ -149,6 +151,7 @@ private:
   bool knownnightlight = nightlightActive;
   bool wificonnected = interfacesInited;
   bool powerON = true;
+  uint8_t *buf;
 
   bool displayTurnedOff = false;
   unsigned long nextUpdate = 0;
@@ -179,6 +182,7 @@ private:
   // https://github.com/olikraus/u8g2/wiki/gallery
 
   // some displays need this to properly apply contrast
+  /*
   void setVcomh(bool highContrast)
   {
     u8x8_t *u8x8_struct = u8x8->getU8x8();
@@ -187,6 +191,7 @@ private:
     u8x8_cad_SendArg(u8x8_struct, highContrast ? 0x000 : 0x040); // value 0 for fix, reboot resets default back to 64
     u8x8_cad_EndTransfer(u8x8_struct);
   }
+  // */
 
   /**
    * Wrappers for screen drawing
@@ -195,67 +200,67 @@ private:
   {
     if (type == NONE || !enabled)
       return;
-    u8x8->setFlipMode(mode);
+    u8g2->setFlipMode(mode);
   }
   void setContrast(uint8_t contrast)
   {
     if (type == NONE || !enabled)
       return;
-    u8x8->setContrast(contrast);
+    u8g2->setContrast(contrast);
   }
   void drawString(uint8_t col, uint8_t row, const char *string, bool ignoreLH = false)
   {
     if (type == NONE || !enabled)
       return;
-    u8x8->setFont(u8x8_font_chroma48medium8_r);
-    if (!ignoreLH && lineHeight == 2)
-      u8x8->draw1x2String(col, row, string);
-    else
-      u8x8->drawString(col, row, string);
+    u8g2->setFont(u8g2_font_finderskeepers_tf);
+    u8g2->drawUTF8(col, row, string);
+    u8g2->sendBuffer();
   }
   void draw2x2String(uint8_t col, uint8_t row, const char *string)
   {
     if (type == NONE || !enabled)
       return;
-    u8x8->setFont(u8x8_font_chroma48medium8_r);
-    u8x8->draw2x2String(col, row, string);
+    u8g2->setFont(u8g2_font_finderskeepers_tf);
+    u8g2->drawStr(col, row, string);
+    u8g2->sendBuffer();
   }
   void drawGlyph(uint8_t col, uint8_t row, char glyph, const uint8_t *font, bool ignoreLH = false)
   {
     if (type == NONE || !enabled)
       return;
-    u8x8->setFont(font);
+    u8g2->setFont(font);
     if (!ignoreLH && lineHeight == 2)
-      u8x8->draw1x2Glyph(col, row, glyph);
+      u8g2->drawGlyph(col, row, glyph);
     else
-      u8x8->drawGlyph(col, row, glyph);
+      u8g2->drawGlyph(col, row, glyph);
+    u8g2->sendBuffer();
   }
   void draw2x2Glyph(uint8_t col, uint8_t row, char glyph, const uint8_t *font)
   {
     if (type == NONE || !enabled)
       return;
-    u8x8->setFont(font);
-    u8x8->draw2x2Glyph(col, row, glyph);
+    u8g2->setFont(font);
+    u8g2->drawGlyph(col, row, glyph);
+    u8g2->sendBuffer();
   }
   uint8_t getCols()
   {
     if (type == NONE || !enabled)
       return 0;
-    return u8x8->getCols();
+    return u8g2->getCols();
   }
   void clear()
   {
     if (type == NONE || !enabled)
       return;
-    u8x8->clear();
+    u8g2->clearBuffer();
   }
   void setPowerSave(uint8_t save)
   {
     if (type == NONE || !enabled)
       return;
-    u8x8->setPowerSave(save);
+    u8g2->setPowerSave(save);
   }
-
   void center(String &line, uint8_t width)
   {
     int len = line.length();
@@ -266,90 +271,6 @@ private:
       line += ' ';
   }
 
-  void draw2x2GlyphIcons()
-  {
-    if (lineHeight == 2)
-    {
-      drawGlyph(1, 0, 1, u8x8_4LineDisplay_WLED_icons_2x2, true);               // brightness icon
-      drawGlyph(5, 0, 2, u8x8_4LineDisplay_WLED_icons_2x2, true);               // speed icon
-      drawGlyph(9, 0, 3, u8x8_4LineDisplay_WLED_icons_2x2, true);               // intensity icon
-      drawGlyph(14, 2 * lineHeight, 4, u8x8_4LineDisplay_WLED_icons_2x2, true); // palette icon
-      drawGlyph(14, 3 * lineHeight, 5, u8x8_4LineDisplay_WLED_icons_2x2, true); // effect icon
-    }
-    else
-    {
-      drawGlyph(1, 0, 1, u8x8_4LineDisplay_WLED_icons_2x1);  // brightness icon
-      drawGlyph(5, 0, 2, u8x8_4LineDisplay_WLED_icons_2x1);  // speed icon
-      drawGlyph(9, 0, 3, u8x8_4LineDisplay_WLED_icons_2x1);  // intensity icon
-      drawGlyph(15, 2, 4, u8x8_4LineDisplay_WLED_icons_1x1); // palette icon
-      drawGlyph(15, 3, 5, u8x8_4LineDisplay_WLED_icons_1x1); // effect icon
-    }
-  }
-
-  /**
-   * Display the current date and time in large characters
-   * on the middle rows. Based 24 or 12 hour depending on
-   * the useAMPM configuration.
-   */
-  void showTime()
-  {
-    if (type == NONE || !enabled || !displayTurnedOff)
-      return;
-
-    unsigned long now = millis();
-    while (drawing && millis() - now < 250)
-      delay(1); // wait if someone else is drawing
-    drawing = true;
-
-    char lineBuffer[LINE_BUFFER_SIZE];
-    static byte lastSecond;
-    byte secondCurrent = second(localTime);
-    byte minuteCurrent = minute(localTime);
-    byte hourCurrent = hour(localTime);
-
-    if (knownMinute != minuteCurrent)
-    { // only redraw clock if it has changed
-      // updateLocalTime();
-      byte AmPmHour = hourCurrent;
-      boolean isitAM = true;
-      if (useAMPM)
-      {
-        if (AmPmHour > 11)
-        {
-          AmPmHour -= 12;
-          isitAM = false;
-        }
-        if (AmPmHour == 0)
-        {
-          AmPmHour = 12;
-        }
-      }
-      if (knownHour != hourCurrent)
-      {
-        // only update date when hour changes
-        sprintf_P(lineBuffer, PSTR("%s %2d "), monthShortStr(month(localTime)), day(localTime));
-        draw2x2String(2, lineHeight == 1 ? 0 : lineHeight, lineBuffer); // adjust for 8 line displays, draw month and day
-      }
-      sprintf_P(lineBuffer, PSTR("%2d:%02d"), (useAMPM ? AmPmHour : hourCurrent), minuteCurrent);
-      draw2x2String(2, lineHeight * 2, lineBuffer); // draw hour, min. blink ":" depending on odd/even seconds
-      if (useAMPM)
-        drawString(12, lineHeight * 2, (isitAM ? "AM" : "PM"), true); // draw am/pm if using 12 time
-
-      drawStatusIcons(); // icons power, wifi, timer, etc
-
-      knownMinute = minuteCurrent;
-      knownHour = hourCurrent;
-    }
-    if (showSeconds && secondCurrent != lastSecond)
-    {
-      lastSecond = secondCurrent;
-      draw2x2String(6, lineHeight * 2, secondCurrent % 2 ? " " : ":");
-      sprintf_P(lineBuffer, PSTR("%02d"), secondCurrent);
-      drawString(12, lineHeight * 2 + 1, lineBuffer, true); // even with double sized rows print seconds in 1 line
-    }
-    drawing = false;
-  }
-
 public:
   // gets called once at boot. Do all initialization that doesn't depend on
   // network here
@@ -358,160 +279,34 @@ public:
     if (type == NONE || !enabled)
       return;
 
-    bool isHW, isSPI = (type == SSD1306_SPI || type == SSD1306_SPI64);
     PinOwner po = PinOwner::UM_FourLineDisplay;
-    if (isSPI)
+    uint8_t hw_scl = i2c_scl < 0 ? HW_PIN_SCL : i2c_scl;
+    uint8_t hw_sda = i2c_sda < 0 ? HW_PIN_SDA : i2c_sda;
+    if (ioPin[0] < 0 || ioPin[1] < 0)
     {
-      uint8_t hw_sclk = spi_sclk < 0 ? HW_PIN_CLOCKSPI : spi_sclk;
-      uint8_t hw_mosi = spi_mosi < 0 ? HW_PIN_DATASPI : spi_mosi;
-      if (ioPin[0] < 0 || ioPin[1] < 0)
-      {
-        ioPin[0] = hw_sclk;
-        ioPin[1] = hw_mosi;
-      }
-      isHW = (ioPin[0] == hw_sclk && ioPin[1] == hw_mosi);
-      PinManagerPinType cspins[3] = {{ioPin[2], true}, {ioPin[3], true}, {ioPin[4], true}};
-      if (!pinManager.allocateMultiplePins(cspins, 3, PinOwner::UM_FourLineDisplay))
-      {
-        type = NONE;
-        return;
-      }
-      if (isHW)
-        po = PinOwner::HW_SPI; // allow multiple allocations of HW I2C bus pins
-      PinManagerPinType pins[2] = {{ioPin[0], true}, {ioPin[1], true}};
-      if (!pinManager.allocateMultiplePins(pins, 2, po))
-      {
-        pinManager.deallocateMultiplePins(cspins, 3, PinOwner::UM_FourLineDisplay);
-        type = NONE;
-        return;
-      }
+      ioPin[0] = hw_scl;
+      ioPin[1] = hw_sda;
     }
-    else
+    po = PinOwner::HW_I2C; // allow multiple allocations of HW I2C bus pins
+    PinManagerPinType pins[2] = {{ioPin[0], true}, {ioPin[1], true}};
+    if (!pinManager.allocateMultiplePins(pins, 2, po))
     {
-      uint8_t hw_scl = i2c_scl < 0 ? HW_PIN_SCL : i2c_scl;
-      uint8_t hw_sda = i2c_sda < 0 ? HW_PIN_SDA : i2c_sda;
-      if (ioPin[0] < 0 || ioPin[1] < 0)
-      {
-        ioPin[0] = hw_scl;
-        ioPin[1] = hw_sda;
-      }
-      isHW = (ioPin[0] == hw_scl && ioPin[1] == hw_sda);
-      if (isHW)
-        po = PinOwner::HW_I2C; // allow multiple allocations of HW I2C bus pins
-      PinManagerPinType pins[2] = {{ioPin[0], true}, {ioPin[1], true}};
-      if (!pinManager.allocateMultiplePins(pins, 2, po))
-      {
-        type = NONE;
-        return;
-      }
-    }
-
-    DEBUG_PRINTLN(F("Allocating display."));
-    /*
-    // At some point it may be good to not new/delete U8X8 object but use this instead
-    // (does not currently work)
-    //-------------------------------------------------------------------------------
-          switch (type) {
-            case SSD1306:
-              u8x8_Setup(u8x8.getU8x8(), u8x8_d_ssd1306_128x32_univision, u8x8_cad_ssd13xx_fast_i2c, u8x8_byte_arduino_sw_i2c, u8x8_gpio_and_delay_arduino);
-              break;
-            case SH1106:
-              u8x8_Setup(u8x8.getU8x8(), u8x8_d_sh1106_128x64_winstar, u8x8_cad_ssd13xx_i2c, u8x8_byte_arduino_sw_i2c, u8x8_gpio_and_delay_arduino);
-              break;
-            case SSD1306_64:
-              u8x8_Setup(u8x8.getU8x8(), u8x8_d_ssd1306_128x64_noname, u8x8_cad_ssd13xx_fast_i2c, u8x8_byte_arduino_sw_i2c, u8x8_gpio_and_delay_arduino);
-              break;
-            case SSD1305:
-              u8x8_Setup(u8x8.getU8x8(), u8x8_d_ssd1305_128x32_adafruit, u8x8_cad_ssd13xx_i2c, u8x8_byte_arduino_hw_i2c, u8x8_gpio_and_delay_arduino);
-              break;
-            case SSD1305_64:
-              u8x8_Setup(u8x8.getU8x8(), u8x8_d_ssd1305_128x64_adafruit, u8x8_cad_ssd13xx_i2c, u8x8_byte_arduino_sw_i2c, u8x8_gpio_and_delay_arduino);
-              break;
-            case SSD1306_SPI:
-              u8x8_Setup(u8x8.getU8x8(), u8x8_d_ssd1306_128x32_univision, u8x8_cad_001, u8x8_byte_arduino_4wire_sw_spi, u8x8_gpio_and_delay_arduino);
-              break;
-            case SSD1306_SPI64:
-              u8x8_Setup(u8x8.getU8x8(), u8x8_d_ssd1306_128x64_noname, u8x8_cad_001, u8x8_byte_arduino_4wire_sw_spi, u8x8_gpio_and_delay_arduino);
-              break;
-            default:
-              type = NONE;
-              return;
-          }
-          if (isSPI) {
-            if (!isHW) u8x8_SetPin_4Wire_SW_SPI(u8x8.getU8x8(), ioPin[0], ioPin[1], ioPin[2], ioPin[3], ioPin[4]);
-            else       u8x8_SetPin_4Wire_HW_SPI(u8x8.getU8x8(), ioPin[2], ioPin[3], ioPin[4]); // Pins are cs, dc, reset
-          } else {
-            if (!isHW) u8x8_SetPin_SW_I2C(u8x8.getU8x8(), ioPin[0], ioPin[1], U8X8_PIN_NONE); // SCL, SDA, reset
-            else       u8x8_SetPin_HW_I2C(u8x8.getU8x8(), U8X8_PIN_NONE, ioPin[0], ioPin[1]); // Pins are Reset, SCL, SDA
-          }
-    */
-    switch (type)
-    {
-    case SSD1306:
-      if (!isHW)
-        u8x8 = (U8X8 *)new U8X8_SSD1306_128X32_UNIVISION_SW_I2C(ioPin[0], ioPin[1]); // SCL, SDA, reset
-      else
-        u8x8 = (U8X8 *)new U8X8_SSD1306_128X32_UNIVISION_HW_I2C(U8X8_PIN_NONE, ioPin[0], ioPin[1]); // Pins are Reset, SCL, SDA
-      break;
-    case SH1106:
-      if (!isHW)
-        u8x8 = (U8X8 *)new U8X8_SH1106_128X64_WINSTAR_SW_I2C(ioPin[0], ioPin[1]); // SCL, SDA, reset
-      else
-        u8x8 = (U8X8 *)new U8X8_SH1106_128X64_WINSTAR_HW_I2C(U8X8_PIN_NONE, ioPin[0], ioPin[1]); // Pins are Reset, SCL, SDA
-      break;
-    case SSD1306_64:
-      if (!isHW)
-        u8x8 = (U8X8 *)new U8X8_SSD1306_128X64_NONAME_SW_I2C(ioPin[0], ioPin[1]); // SCL, SDA, reset
-      else
-        u8x8 = (U8X8 *)new U8X8_SSD1306_128X64_NONAME_HW_I2C(U8X8_PIN_NONE, ioPin[0], ioPin[1]); // Pins are Reset, SCL, SDA
-      break;
-    case SSD1305:
-      if (!isHW)
-        u8x8 = (U8X8 *)new U8X8_SSD1305_128X32_NONAME_SW_I2C(ioPin[0], ioPin[1]); // SCL, SDA, reset
-      else
-        u8x8 = (U8X8 *)new U8X8_SSD1305_128X32_ADAFRUIT_HW_I2C(U8X8_PIN_NONE, ioPin[0], ioPin[1]); // Pins are Reset, SCL, SDA
-      break;
-    case SSD1305_64:
-      if (!isHW)
-        u8x8 = (U8X8 *)new U8X8_SSD1305_128X64_ADAFRUIT_SW_I2C(ioPin[0], ioPin[1]); // SCL, SDA, reset
-      else
-        u8x8 = (U8X8 *)new U8X8_SSD1305_128X64_ADAFRUIT_HW_I2C(U8X8_PIN_NONE, ioPin[0], ioPin[1]); // Pins are Reset, SCL, SDA
-      break;
-    case SSD1306_SPI:
-      // u8x8 uses global SPI variable that is attached to VSPI bus on ESP32
-      if (!isHW)
-        u8x8 = (U8X8 *)new U8X8_SSD1306_128X32_UNIVISION_4W_SW_SPI(ioPin[0], ioPin[1], ioPin[2], ioPin[3], ioPin[4]);
-      else
-        u8x8 = (U8X8 *)new U8X8_SSD1306_128X32_UNIVISION_4W_HW_SPI(ioPin[2], ioPin[3], ioPin[4]); // Pins are cs, dc, reset
-      break;
-    case SSD1306_SPI64:
-      // u8x8 uses global SPI variable that is attached to VSPI bus on ESP32
-      if (!isHW)
-        u8x8 = (U8X8 *)new U8X8_SSD1306_128X64_NONAME_4W_SW_SPI(ioPin[0], ioPin[1], ioPin[2], ioPin[3], ioPin[4]);
-      else
-        u8x8 = (U8X8 *)new U8X8_SSD1306_128X64_NONAME_4W_HW_SPI(ioPin[2], ioPin[3], ioPin[4]); // Pins are cs, dc, reset
-      break;
-    default:
-      u8x8 = nullptr;
-    }
-
-    if (nullptr == u8x8)
-    {
-      DEBUG_PRINTLN(F("Display init failed."));
-      pinManager.deallocateMultiplePins((const uint8_t *)ioPin, isSPI ? 5 : 2, po);
       type = NONE;
       return;
     }
 
-    lineHeight = u8x8->getRows() > 4 ? 2 : 1;
+    DEBUG_PRINTLN(F("Allocating display."));
+    u8g2 = (U8G2 *)new U8G2_SSD1306_128X64_NONAME_F_HW_I2C(U8G2_R0); // No rotation, landscape
+
+    lineHeight = 2;
     DEBUG_PRINTLN(F("Starting display."));
-    u8x8->setBusClock(ioFrequency); // can be used for SPI too
-    u8x8->begin();
-    setFlipMode(flip);
-    setVcomh(contrastFix);
+    u8g2->initDisplay();
+    u8g2->clearDisplay();
+    u8g2->setPowerSave(0);
+    u8g2->setDrawColor(0);
+    u8g2->setFontMode(1);
     setContrast(contrast); // Contrast setup will help to preserve OLED lifetime. In case OLED need to be brighter increase number up to 255
-    setPowerSave(0);
-    // drawString(0, 0, "Loading...");
+    //drawString(0, 0, "Loading...");
     overlayLogo(3500);
     onUpdateBegin(false); // create Display task
     initDone = true;
@@ -585,106 +380,14 @@ public:
       return;
     }
 
-    // Check if values which are shown on display changed from the last time.
-    if (forceRedraw)
-    {
-      needRedraw = true;
-      clear();
-    }
-    else if ((bri == 0 && powerON) || (bri > 0 && !powerON))
-    { // trigger power icon
-      powerON = !powerON;
-      drawStatusIcons();
-      return;
-    }
-    else if (knownnightlight != nightlightActive)
-    { // trigger moon icon
-      knownnightlight = nightlightActive;
-      drawStatusIcons();
-      if (knownnightlight)
-      {
-        String timer = PSTR("Timer On");
-        center(timer, LINE_BUFFER_SIZE - 1);
-        overlay(timer.c_str(), 2500, 6);
-      }
-      return;
-    }
-    else if (wificonnected != interfacesInited)
-    { // trigger wifi icon
-      wificonnected = interfacesInited;
-      drawStatusIcons();
-      return;
-    }
-    else if (knownMode != effectCurrent || knownPalette != effectPalette)
-    {
-      if (displayTurnedOff)
-        needRedraw = true;
-      else
-      {
-        if (knownPalette != effectPalette)
-        {
-          showCurrentEffectOrPalette(effectPalette, JSON_palette_names, 2);
-          knownPalette = effectPalette;
-        }
-        if (knownMode != effectCurrent)
-        {
-          showCurrentEffectOrPalette(effectCurrent, JSON_mode_names, 3);
-          knownMode = effectCurrent;
-        }
-        lastRedraw = now;
-        return;
-      }
-    }
-    else if (knownBrightness != bri)
-    {
-      if (displayTurnedOff && nightlightActive)
-      {
-        knownBrightness = bri;
-      }
-      else if (!displayTurnedOff)
-      {
-        updateBrightness();
-        lastRedraw = now;
-        return;
-      }
-    }
-    else if (knownEffectSpeed != effectSpeed)
-    {
-      if (displayTurnedOff)
-        needRedraw = true;
-      else
-      {
-        updateSpeed();
-        lastRedraw = now;
-        return;
-      }
-    }
-    else if (knownEffectIntensity != effectIntensity)
-    {
-      if (displayTurnedOff)
-        needRedraw = true;
-      else
-      {
-        updateIntensity();
-        lastRedraw = now;
-        return;
-      }
-    }
-
     if (!needRedraw)
     {
       // Nothing to change.
       // Turn off display after 1 minutes with no change.
       if (sleepMode && !displayTurnedOff && (millis() - lastRedraw > screenTimeout))
       {
-        // We will still check if there is a change in redraw()
-        // and turn it back on if it changed.
         clear();
-        sleepOrClock(true);
-      }
-      else if (displayTurnedOff && ntpEnabled)
-      {
-        showTime();
+        displaySleep(true);
       }
       return;
     }
@@ -694,223 +397,18 @@ public:
     // Turn the display back on
     wakeDisplay();
 
-    // Update last known values.
-    knownBrightness = bri;
-    knownMode = effectCurrent;
-    knownPalette = effectPalette;
-    knownEffectSpeed = effectSpeed;
-    knownEffectIntensity = effectIntensity;
-    knownnightlight = nightlightActive;
-    wificonnected = interfacesInited;
-
-    // Do the actual drawing
-    // First row: Icons
-    // draw2x2GlyphIcons();
-    // drawArrow();
-    // drawStatusIcons();
-
-    // Second row
-    // updateBrightness();
-    // updateSpeed();
-    // updateIntensity();
-
     drawAaris();
-
-    // const char* teatteri = "TEATTERI";
-    // const char* aaris = "AARIRAJA";
-
-    // String buf1 = teatteri;
-    // String buf2 = aaris;
-    // center(buf1, getCols());
-    // center(buf2, getCols());
-    // u8x8->setFont(u8x8_font_chroma48medium8_r);
-    // u8x8->draw1x2String(0, 2, buf1.c_str());
-    // u8x8->draw1x2String(0, 4, buf2.c_str());
-
-    // Third row
-    // showCurrentEffectOrPalette(knownPalette, JSON_palette_names, 2); //Palette info
-
-    // Fourth row
-    // showCurrentEffectOrPalette(knownMode, JSON_mode_names, 3); //Effect Mode info
   }
 
-  void updateBrightness()
-  {
-    knownBrightness = bri;
-    if (overlayUntil == 0)
-    {
-      brightness100 = ((uint16_t)bri * 100) / 255;
-      char lineBuffer[4];
-      sprintf_P(lineBuffer, PSTR("%-3d"), brightness100);
-      drawString(1, lineHeight, lineBuffer);
-      // lastRedraw = millis();
-    }
-  }
-
-  void updateSpeed()
-  {
-    knownEffectSpeed = effectSpeed;
-    if (overlayUntil == 0)
-    {
-      fxspeed100 = ((uint16_t)effectSpeed * 100) / 255;
-      char lineBuffer[4];
-      sprintf_P(lineBuffer, PSTR("%-3d"), fxspeed100);
-      drawString(5, lineHeight, lineBuffer);
-      // lastRedraw = millis();
-    }
-  }
-
-  void updateIntensity()
-  {
-    knownEffectIntensity = effectIntensity;
-    if (overlayUntil == 0)
-    {
-      fxintensity100 = ((uint16_t)effectIntensity * 100) / 255;
-      char lineBuffer[4];
-      sprintf_P(lineBuffer, PSTR("%-3d"), fxintensity100);
-      drawString(9, lineHeight, lineBuffer);
-      // lastRedraw = millis();
-    }
-  }
-
-  void drawStatusIcons()
-  {
-    uint8_t col = 15;
-    uint8_t row = 0;
-    drawGlyph(col, row, (wificonnected ? 20 : 0), u8x8_4LineDisplay_WLED_icons_1x1, true); // wifi icon
-    if (lineHeight == 2)
-    {
-      col--;
-    }
-    else
-    {
-      row++;
-    }
-    drawGlyph(col, row, (bri > 0 ? 9 : 0), u8x8_4LineDisplay_WLED_icons_1x1, true); // power icon
-    if (lineHeight == 2)
-    {
-      col--;
-    }
-    else
-    {
-      col = row = 0;
-    }
-    drawGlyph(col, row, (nightlightActive ? 6 : 0), u8x8_4LineDisplay_WLED_icons_1x1, true); // moon icon for nighlight mode
-  }
-
-  /**
-   * marks the position of the arrow showing
-   * the current setting being changed
-   * pass line and colum info
-   */
-  void setMarkLine(byte newMarkLineNum, byte newMarkColNum)
-  {
-    markLineNum = newMarkLineNum;
-    markColNum = newMarkColNum;
-  }
-
-  // Draw the arrow for the current setting beiong changed
-  void drawArrow()
-  {
-    if (markColNum != 255 && markLineNum != 255)
-      drawGlyph(markColNum, markLineNum * lineHeight, 21, u8x8_4LineDisplay_WLED_icons_1x1);
-  }
-
+  //*
   void drawAaris()
   {
-    //drawGlyph(0, 0, 1, u8x8_logo_aaris, true);
-    //*
-    //u8x8->setFont(u8x8_aaris);
-    u8x8->drawString(0, 0, " !\"#$%&'");
-    u8x8->drawString(0, 2, "()*+,-./");
-    u8x8->drawString(0, 4, "01234567");
-    u8x8->drawString(0, 6, "89:;<=>?");
-    // */
+    drawing = true;
+    u8g2->drawXBMP(0, 0, 128, 64, aaris_logo_xbm);
+    u8g2->sendBuffer();
+    drawing = false;
   }
-
-  // Display the current effect or palette (desiredEntry)
-  //  on the appropriate line (row).
-  void showCurrentEffectOrPalette(int inputEffPal, const char *qstring, uint8_t row)
-  {
-    char lineBuffer[MAX_JSON_CHARS];
-    if (overlayUntil == 0)
-    {
-      // Find the mode name in JSON
-      uint8_t printedChars = extractModeName(inputEffPal, qstring, lineBuffer, MAX_JSON_CHARS - 1);
-      if (lineBuffer[0] == '*' && lineBuffer[1] == ' ')
-      {
-        // remove "* " from dynamic palettes
-        for (byte i = 2; i <= printedChars; i++)
-          lineBuffer[i - 2] = lineBuffer[i]; // include '\0'
-        printedChars -= 2;
-      }
-      else if ((lineBuffer[0] == ' ' && lineBuffer[1] > 127))
-      {
-        // remove note symbol from effect names
-        for (byte i = 5; i <= printedChars; i++)
-          lineBuffer[i - 5] = lineBuffer[i]; // include '\0'
-        printedChars -= 5;
-      }
-      if (lineHeight == 2)
-      { // use this code for 8 line display
-        char smallBuffer1[MAX_MODE_LINE_SPACE];
-        char smallBuffer2[MAX_MODE_LINE_SPACE];
-        uint8_t smallChars1 = 0;
-        uint8_t smallChars2 = 0;
-        if (printedChars < MAX_MODE_LINE_SPACE)
-        { // use big font if the text fits
-          while (printedChars < (MAX_MODE_LINE_SPACE - 1))
-            lineBuffer[printedChars++] = ' ';
-          lineBuffer[printedChars] = 0;
-          drawString(1, row * lineHeight, lineBuffer);
-        }
-        else
-        { // for long names divide the text into 2 lines and print them small
-          bool spaceHit = false;
-          for (uint8_t i = 0; i < printedChars; i++)
-          {
-            switch (lineBuffer[i])
-            {
-            case ' ':
-              if (i > 4 && !spaceHit)
-              {
-                spaceHit = true;
-                break;
-              }
-              if (spaceHit)
-                smallBuffer2[smallChars2++] = lineBuffer[i];
-              else
-                smallBuffer1[smallChars1++] = lineBuffer[i];
-              break;
-            default:
-              if (spaceHit)
-                smallBuffer2[smallChars2++] = lineBuffer[i];
-              else
-                smallBuffer1[smallChars1++] = lineBuffer[i];
-              break;
-            }
-          }
-          while (smallChars1 < (MAX_MODE_LINE_SPACE - 1))
-            smallBuffer1[smallChars1++] = ' ';
-          smallBuffer1[smallChars1] = 0;
-          drawString(1, row * lineHeight, smallBuffer1, true);
-          while (smallChars2 < (MAX_MODE_LINE_SPACE - 1))
-            smallBuffer2[smallChars2++] = ' ';
-          smallBuffer2[smallChars2] = 0;
-          drawString(1, row * lineHeight + 1, smallBuffer2, true);
-        }
-      }
-      else
-      {                                             // use this code for 4 ling displays
-        char smallBuffer3[MAX_MODE_LINE_SPACE + 1]; // uses 1x1 icon for mode/palette
-        uint8_t smallChars3 = 0;
-        for (uint8_t i = 0; i < MAX_MODE_LINE_SPACE; i++)
-          smallBuffer3[smallChars3++] = (i >= printedChars) ? ' ' : lineBuffer[i];
-        smallBuffer3[smallChars3] = 0;
-        drawString(1, row * lineHeight, smallBuffer3, true);
-      }
-    }
-  }
+  // */
 
   /**
    * If there screen is off or in clock is displayed,
@@ -930,7 +428,7 @@ public:
       drawing = true;
       clear();
       // Turn the display back on
-      sleepOrClock(false);
+      displaySleep(false);
       // lastRedraw = millis();
       drawing = false;
       return true;
@@ -1101,7 +599,7 @@ public:
     drawing = false;
   }
 
-  void overlay(const char *line1, const char *line2, const char *line3, const char *line4, long showHowLong)
+  void overlay(const char *line1, const char *line2, const char *line3, const char *line4, long showHowLong, bool ignoreLH = false)
   {
     unsigned long now = millis();
     while (drawing && millis() - now < 250)
@@ -1115,25 +613,237 @@ public:
     {
       String buf = line1;
       center(buf, getCols());
-      drawString(0, 0, buf.c_str());
+      drawString(0, 0, buf.c_str(), ignoreLH);
     }
     if (line2)
     {
       String buf = line2;
       center(buf, getCols());
-      drawString(0, lineHeight, buf.c_str());
+      drawString(0, 1, buf.c_str(), ignoreLH);
     }
     if (line3)
     {
       String buf = line3;
       center(buf, getCols());
-      drawString(0, 2 * lineHeight, buf.c_str());
+      drawString(0, 2, buf.c_str(), ignoreLH);
     }
     if (line4)
     {
       String buf = line4;
       center(buf, getCols());
-      drawString(0, 3 * lineHeight, buf.c_str());
+      drawString(0, 3, buf.c_str(), ignoreLH);
+    }
+    overlayUntil = millis() + showHowLong;
+    drawing = false;
+  }
+
+  void overlay(const char *line1, const char *line2, const char *line3, const char *line4, const char *line5, long showHowLong, bool ignoreLH = false)
+  {
+    unsigned long now = millis();
+    while (drawing && millis() - now < 250)
+      delay(1); // wait if someone else is drawing
+    drawing = true;
+    // Turn the display back on
+    if (!wakeDisplay())
+      clear();
+    // Print the overlay
+    if (line1)
+    {
+      String buf = line1;
+      center(buf, getCols());
+      drawString(0, 0, buf.c_str(), ignoreLH);
+    }
+    if (line2)
+    {
+      String buf = line2;
+      center(buf, getCols());
+      drawString(0, 1, buf.c_str(), ignoreLH);
+    }
+    if (line3)
+    {
+      String buf = line3;
+      center(buf, getCols());
+      drawString(0, 2, buf.c_str(), ignoreLH);
+    }
+    if (line4)
+    {
+      String buf = line4;
+      center(buf, getCols());
+      drawString(0, 3, buf.c_str(), ignoreLH);
+    }
+    if (line5)
+    {
+      String buf = line4;
+      center(buf, getCols());
+      drawString(0, 4, buf.c_str(), ignoreLH);
+    }
+    overlayUntil = millis() + showHowLong;
+    drawing = false;
+  }
+
+  void overlay(const char *line1, const char *line2, const char *line3, const char *line4, const char *line5, const char *line6, long showHowLong, bool ignoreLH = false)
+  {
+    unsigned long now = millis();
+    while (drawing && millis() - now < 250)
+      delay(1); // wait if someone else is drawing
+    drawing = true;
+    // Turn the display back on
+    if (!wakeDisplay())
+      clear();
+    // Print the overlay
+    if (line1)
+    {
+      String buf = line1;
+      center(buf, getCols());
+      drawString(0, 0, buf.c_str(), ignoreLH);
+    }
+    if (line2)
+    {
+      String buf = line2;
+      center(buf, getCols());
+      drawString(0, 1, buf.c_str(), ignoreLH);
+    }
+    if (line3)
+    {
+      String buf = line3;
+      center(buf, getCols());
+      drawString(0, 2, buf.c_str(), ignoreLH);
+    }
+    if (line4)
+    {
+      String buf = line4;
+      center(buf, getCols());
+      drawString(0, 3, buf.c_str(), ignoreLH);
+    }
+    if (line5)
+    {
+      String buf = line5;
+      center(buf, getCols());
+      drawString(0, 4, buf.c_str(), ignoreLH);
+    }
+    if (line6)
+    {
+      String buf = line6;
+      center(buf, getCols());
+      drawString(0, 5, buf.c_str(), ignoreLH);
+    }
+    overlayUntil = millis() + showHowLong;
+    drawing = false;
+  }
+
+  void overlay(const char *line1, const char *line2, const char *line3, const char *line4, const char *line5, const char *line6, const char *line7, long showHowLong, bool ignoreLH = false)
+  {
+    unsigned long now = millis();
+    while (drawing && millis() - now < 250)
+      delay(1); // wait if someone else is drawing
+    drawing = true;
+    // Turn the display back on
+    if (!wakeDisplay())
+      clear();
+    // Print the overlay
+    if (line1)
+    {
+      String buf = line1;
+      center(buf, getCols());
+      drawString(0, 0, buf.c_str(), ignoreLH);
+    }
+    if (line2)
+    {
+      String buf = line2;
+      center(buf, getCols());
+      drawString(0, 1, buf.c_str(), ignoreLH);
+    }
+    if (line3)
+    {
+      String buf = line3;
+      center(buf, getCols());
+      drawString(0, 2, buf.c_str(), ignoreLH);
+    }
+    if (line4)
+    {
+      String buf = line4;
+      center(buf, getCols());
+      drawString(0, 3, buf.c_str(), ignoreLH);
+    }
+    if (line5)
+    {
+      String buf = line5;
+      center(buf, getCols());
+      drawString(0, 4, buf.c_str(), ignoreLH);
+    }
+    if (line6)
+    {
+      String buf = line6;
+      center(buf, getCols());
+      drawString(0, 5, buf.c_str(), ignoreLH);
+    }
+    if (line7)
+    {
+      String buf = line7;
+      center(buf, getCols());
+      drawString(0, 6, buf.c_str(), ignoreLH);
+    }
+    overlayUntil = millis() + showHowLong;
+    drawing = false;
+  }
+
+  void overlay(const char *line1, const char *line2, const char *line3, const char *line4, const char *line5, const char *line6, const char *line7, const char *line8, long showHowLong, bool ignoreLH = false)
+  {
+    unsigned long now = millis();
+    while (drawing && millis() - now < 250)
+      delay(1); // wait if someone else is drawing
+    drawing = true;
+    // Turn the display back on
+    if (!wakeDisplay())
+      clear();
+    // Print the overlay
+    if (line1)
+    {
+      String buf = line1;
+      center(buf, getCols());
+      drawString(0, 0, buf.c_str(), ignoreLH);
+    }
+    if (line2)
+    {
+      String buf = line2;
+      center(buf, getCols());
+      drawString(0, 1, buf.c_str(), ignoreLH);
+    }
+    if (line3)
+    {
+      String buf = line3;
+      center(buf, getCols());
+      drawString(0, 2, buf.c_str(), ignoreLH);
+    }
+    if (line4)
+    {
+      String buf = line4;
+      center(buf, getCols());
+      drawString(0, 3, buf.c_str(), ignoreLH);
+    }
+    if (line5)
+    {
+      String buf = line5;
+      center(buf, getCols());
+      drawString(0, 4, buf.c_str(), ignoreLH);
+    }
+    if (line6)
+    {
+      String buf = line6;
+      center(buf, getCols());
+      drawString(0, 5, buf.c_str(), ignoreLH);
+    }
+    if (line7)
+    {
+      String buf = line7;
+      center(buf, getCols());
+      drawString(0, 6, buf.c_str(), ignoreLH);
+    }
+    if (line8)
+    {
+      String buf = line8;
+      center(buf, getCols());
+      drawString(0, 7, buf.c_str(), ignoreLH);
     }
     overlayUntil = millis() + showHowLong;
     drawing = false;
@@ -1189,104 +899,18 @@ public:
   /**
    * Enable sleep (turn the display off) or clock mode.
    */
-  void sleepOrClock(bool enabled)
+  void displaySleep(bool enabled)
   {
     if (enabled)
     {
       displayTurnedOff = true;
-      if (clockMode && ntpEnabled)
-      {
-        knownMinute = knownHour = 99;
-        showTime();
-      }
-      else
-        setPowerSave(1);
+      setPowerSave(1);
     }
     else
     {
       displayTurnedOff = false;
       setPowerSave(0);
     }
-  }
-
-  /**
-   * handleButton() can be used to override default button behaviour. Returning true
-   * will prevent button working in a default way.
-   * Replicating button.cpp
-   */
-  bool handleButton(uint8_t b)
-  {
-    yield();
-    if (!enabled || b // butto 0 only
-        || buttonType[b] == BTN_TYPE_SWITCH || buttonType[b] == BTN_TYPE_NONE || buttonType[b] == BTN_TYPE_RESERVED || buttonType[b] == BTN_TYPE_PIR_SENSOR || buttonType[b] == BTN_TYPE_ANALOG || buttonType[b] == BTN_TYPE_ANALOG_INVERTED)
-    {
-      return false;
-    }
-
-    unsigned long now = millis();
-    static bool buttonPressedBefore = false;
-    static bool buttonLongPressed = false;
-    static unsigned long buttonPressedTime = 0;
-    static unsigned long buttonWaitTime = 0;
-    bool handled = true;
-
-    // momentary button logic
-    if (isButtonPressed(b))
-    { // pressed
-
-      if (!buttonPressedBefore)
-        buttonPressedTime = now;
-      buttonPressedBefore = true;
-
-      if (now - buttonPressedTime > 600)
-      { // long press
-        buttonLongPressed = true;
-        // TODO: handleButton() handles button 0 without preset in a different way for double click
-        // so we need to override with same behaviour
-        longPressAction(0);
-        // handled = false;
-      }
-    }
-    else if (!isButtonPressed(b) && buttonPressedBefore)
-    { // released
-
-      long dur = now - buttonPressedTime;
-      if (dur < 50)
-      {
-        buttonPressedBefore = false;
-        return true;
-      } // too short "press", debounce
-
-      bool doublePress = buttonWaitTime; // did we have short press before?
-      buttonWaitTime = 0;
-
-      if (!buttonLongPressed)
-      { // short press
-        // if this is second release within 350ms it is a double press (buttonWaitTime!=0)
-        // TODO: handleButton() handles button 0 without preset in a different way for double click
-        if (doublePress)
-        {
-          networkOverlay(PSTR("NETWORK INFO"), 7000);
-          handled = true;
-        }
-        else
-        {
-          buttonWaitTime = now;
-        }
-      }
-      buttonPressedBefore = false;
-      buttonLongPressed = false;
-    }
-    // if 350ms elapsed since last press/release it is a short press
-    if (buttonWaitTime && now - buttonWaitTime > 350 && !buttonPressedBefore)
-    {
-      buttonWaitTime = 0;
-      // TODO: handleButton() handles button 0 without preset in a different way for double click
-      // so we need to override with same behaviour
-      shortPressAction(0);
-      // handled = false;
-    }
-    return handled;
   }
 
 #if CONFIG_FREERTOS_UNICORE
@@ -1496,38 +1120,16 @@ public:
         }
       if (pinsChanged || type != newType)
       {
-        if (type != NONE)
-          delete u8x8;
         PinOwner po = PinOwner::UM_FourLineDisplay;
-        bool isSPI = (type == SSD1306_SPI || type == SSD1306_SPI64);
-        if (isSPI)
-        {
-          pinManager.deallocateMultiplePins((const uint8_t *)(&oldPin[2]), 3, po);
-          uint8_t hw_sclk = spi_sclk < 0 ? HW_PIN_CLOCKSPI : spi_sclk;
-          uint8_t hw_mosi = spi_mosi < 0 ? HW_PIN_DATASPI : spi_mosi;
-          bool isHW = (oldPin[0] == hw_sclk && oldPin[1] == hw_mosi);
-          if (isHW)
-            po = PinOwner::HW_SPI;
-        }
-        else
-        {
-          uint8_t hw_scl = i2c_scl < 0 ? HW_PIN_SCL : i2c_scl;
-          uint8_t hw_sda = i2c_sda < 0 ? HW_PIN_SDA : i2c_sda;
-          bool isHW = (oldPin[0] == hw_scl && oldPin[1] == hw_sda);
-          if (isHW)
-            po = PinOwner::HW_I2C;
-        }
+        uint8_t hw_scl = i2c_scl < 0 ? HW_PIN_SCL : i2c_scl;
+        uint8_t hw_sda = i2c_sda < 0 ? HW_PIN_SDA : i2c_sda;
+        bool isHW = (oldPin[0] == hw_scl && oldPin[1] == hw_sda);
+        if (isHW)
+          po = PinOwner::HW_I2C;
         pinManager.deallocateMultiplePins((const uint8_t *)oldPin, 2, po);
         type = newType;
         setup();
         needsRedraw |= true;
-      }
-      else
-      {
-        u8x8->setBusClock(ioFrequency); // can be used for SPI too
-        setVcomh(contrastFix);
-        setContrast(contrast);
-        setFlipMode(flip);
       }
       knownHour = 99;
       if (needsRedraw && !wakeDisplay())
