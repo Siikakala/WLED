@@ -1,9 +1,10 @@
 #pragma once
 
 #include "wled.h"
+// #include <U8g2lib.h>
+// #include <Arduino.h>
 
-#define WLED_DEBOUNCE_THRESHOLD 50 //only consider button input of at least 50ms as valid (debouncing)
-
+#define WLED_DEBOUNCE_THRESHOLD 50 // only consider button input of at least 50ms as valid (debouncing)
 
 class UsermodOledInfo : public Usermod
 {
@@ -12,20 +13,32 @@ private:
   bool enabled = false;
   bool initDone = false;
   unsigned long m_lastTime = 0;
-  unsigned long m_LoopFrequency = 10000;
-  unsigned int showCount = 3; //How many times info will be shown before falling back to button only
+  unsigned long m_LoopFrequency = 5000;
+  unsigned int showCount = 6; // How many times info will be shown before falling back to button only
   const uint16_t NETWORK_MASK = 0xF00;
   const uint16_t SUBNET_MASK = 0x0F0;
   const uint16_t UNIVERSE_MASK = 0x00F;
+
+  bool displayTurnedOff = false;
+  bool sleepMode = true;
+  unsigned long nextUpdate = 0;
+  unsigned long lastRedraw = 0;
+  unsigned long overlayUntil = 0;
+  uint8_t buttonPresses = 0;
+  uint16_t refreshRate = 1000;
+  uint32_t screenTimeout = 10000;
+
   String actor = "";
   IPAddress knownIp;
   FourLineDisplayUsermod *display;
   UsermodBattery *battery;
-  //UsermodBME280 *temp;
+  // UsermodBME280 *temp;
 
   static const char _name[];
   static const char _enabled[];
-  const char* empty = '\0';
+  const char *empty = '\0';
+
+  // U8G2 u8g2 = U8G2_SSD1306_128X64_NONAME_2_HW_I2C (U8G2_R0, U8X8_PIN_NONE, HW_PIN_SCL, HW_PIN_SDA);
 
 public:
   inline void enable(bool enable) { enabled = enable; }
@@ -35,7 +48,7 @@ public:
   {
     display = (FourLineDisplayUsermod *)usermods.lookup(USERMOD_ID_FOUR_LINE_DISP);
     battery = (UsermodBattery *)usermods.lookup(USERMOD_ID_BATTERY);
-    //temp = (UsermodBME280 *)usermods.lookup(USERMOD_ID_BME280);
+    // temp = (UsermodBME280 *)usermods.lookup(USERMOD_ID_BME280);
     m_lastTime = millis();
     initDone = true;
   }
@@ -47,86 +60,107 @@ public:
 
   void loop()
   {
-    if (!enabled) return;
+    if (!enabled)
+      return;
     if (millis() - m_lastTime > m_LoopFrequency && showCount > 0)
     {
       m_lastTime = millis();
       showCount--;
-      showInfo();
+      if (showCount % 2 == 0)
+      {
+        showActorInfo();
+      }
+      else
+      {
+        showArtNetInfo();
+      }
     }
   }
 
-  void showInfo()
+  void showActorInfo()
   {
     char s1[32];
-    char s2[16];
-    char s3[64];
+    char s4[32];
+    snprintf_P(s1, sizeof(s1), PSTR("Actor:"));
+    snprintf_P(s4, sizeof(s4), PSTR("%s"), actor.c_str());
+
+    display->overlay(s1, empty, empty, s4, empty, empty, empty, empty, 5000);
+  }
+
+  void showArtNetInfo()
+  {
+    char s1[32];
     char s4[16];
     char s5[16];
     char s6[16];
     snprintf_P(s1, sizeof(s1), PSTR("Art-Net: %i:%i:%i"), (e131Universe & NETWORK_MASK) >> 8, (e131Universe & SUBNET_MASK) >> 4, e131Universe & UNIVERSE_MASK);
-    snprintf_P(s2, sizeof(s2), PSTR("Actor:"));
-    snprintf_P(s3, sizeof(s2), PSTR("%s"), actor.c_str());
     snprintf_P(s4, sizeof(s4), PSTR("Battery: %i%%"), battery->getBatteryLevel());
-    //snprintf_P(s5, sizeof(s5), PSTR("Temp: %f C"), temp->getTemperatureC());
+    // snprintf_P(s5, sizeof(s5), PSTR("Temp: %f C"), temp->getTemperatureC());
     snprintf_P(s6, sizeof(s6), PSTR("IP: %s"), knownIp.toString().c_str());
-    
-    display->overlay(s1, cmDNS, empty, s3, empty, s4, s5, s6, 5000, true);
+
+    display->overlay(s1, cmDNS, empty, empty, empty, s4, s5, s6, 5000);
   }
 
-  bool handleButton(uint8_t b) {
-      yield();
-      if (!enabled
-       || buttonType[b] == BTN_TYPE_NONE
-       || buttonType[b] == BTN_TYPE_RESERVED
-       || buttonType[b] == BTN_TYPE_PIR_SENSOR
-       || buttonType[b] == BTN_TYPE_ANALOG
-       || buttonType[b] == BTN_TYPE_ANALOG_INVERTED
-       || buttonType[b] == BTN_TYPE_SWITCH) {
-        return false;
+  bool handleButton(uint8_t b)
+  {
+    yield();
+    if (!enabled || buttonType[b] == BTN_TYPE_NONE || buttonType[b] == BTN_TYPE_RESERVED || buttonType[b] == BTN_TYPE_PIR_SENSOR || buttonType[b] == BTN_TYPE_ANALOG || buttonType[b] == BTN_TYPE_ANALOG_INVERTED || buttonType[b] == BTN_TYPE_SWITCH)
+    {
+      return false;
+    }
+
+    bool handled = false;
+    unsigned long now = millis();
+
+    // momentary button logic
+    if (isButtonPressed(b))
+    { // pressed
+
+      if (!buttonPressedBefore[b])
+        buttonPressedTime[b] = now;
+      buttonPressedBefore[b] = true;
+      buttonPresses++;
+
+      if (now - buttonPressedTime[b] > 600)
+      {                  // long press
+        handled = false; // use if you want to pass to default behaviour
+        buttonLongPressed[b] = true;
       }
+    }
+    else if (!isButtonPressed(b) && buttonPressedBefore[b])
+    { // released
 
-      bool handled = false;
-      unsigned long now = millis();
-
-       //momentary button logic
-      if (isButtonPressed(b)) { //pressed
-
-        if (!buttonPressedBefore[b]) buttonPressedTime[b] = now;
-        buttonPressedBefore[b] = true;
-
-        if (now - buttonPressedTime[b] > 600) { //long press
-          handled = false; //use if you want to pass to default behaviour
-          buttonLongPressed[b] = true;
-        }
-
-      } else if (!isButtonPressed(b) && buttonPressedBefore[b]) { //released
-
-        long dur = now - buttonPressedTime[b];
-        if (dur < WLED_DEBOUNCE_THRESHOLD) {
-          buttonPressedBefore[b] = false;
-          return handled;
-        } //too short "press", debounce
-        bool doublePress = buttonWaitTime[b]; //did we have short press before?
-        buttonWaitTime[b] = 0;
-
-        if (!buttonLongPressed[b]) { //short press
-          // if this is second release within 350ms it is a double press (buttonWaitTime!=0)
-          if (doublePress) {
-            handled = false; //use if you want to pass to default behaviour
-          } else  {
-            buttonWaitTime[b] = now;
-          }
-        }
+      long dur = now - buttonPressedTime[b];
+      if (dur < WLED_DEBOUNCE_THRESHOLD)
+      {
         buttonPressedBefore[b] = false;
-        buttonLongPressed[b] = false;
+        return handled;
+      }                                     // too short "press", debounce
+      bool doublePress = buttonWaitTime[b]; // did we have short press before?
+      buttonWaitTime[b] = 0;
+
+      if (!buttonLongPressed[b])
+      { // short press
+        // if this is second release within 350ms it is a double press (buttonWaitTime!=0)
+        if (doublePress)
+        {
+          handled = false; // use if you want to pass to default behaviour
+        }
+        else
+        {
+          buttonWaitTime[b] = now;
+        }
       }
-      // if 350ms elapsed since last press/release it is a short press
-      if (buttonWaitTime[b] && now - buttonWaitTime[b] > 350 && !buttonPressedBefore[b]) {
-        buttonWaitTime[b] = 0;
-        showInfo();
-      }
-      return handled;
+      buttonPressedBefore[b] = false;
+      buttonLongPressed[b] = false;
+    }
+    // if 350ms elapsed since last press/release it is a short press
+    if (buttonWaitTime[b] && now - buttonWaitTime[b] > 350 && !buttonPressedBefore[b])
+    {
+      buttonWaitTime[b] = 0;
+      showActorInfo();
+    }
+    return handled;
   }
 
   void addToJsonInfo(JsonObject &root)
@@ -147,7 +181,7 @@ public:
     batteryinfo["maxVoltage"] = battery->getMaxBatteryVoltage();
   }
 
-  void addToConfig(JsonObject& root)
+  void addToConfig(JsonObject &root)
   {
     JsonObject top = root.createNestedObject(FPSTR(_name));
     top[FPSTR(_enabled)] = enabled;
@@ -156,10 +190,13 @@ public:
 
   void appendConfigData()
   {
-      oappend(SET_F("addInfo('")); oappend(String(FPSTR(_name)).c_str()); oappend(SET_F(":actor")); oappend(SET_F("',1,'<br /><small><i>Whose control box this is</i></small>');"));
+    oappend(SET_F("addInfo('"));
+    oappend(String(FPSTR(_name)).c_str());
+    oappend(SET_F(":actor"));
+    oappend(SET_F("',1,'<br /><small><i>Whose control box this is</i></small>');"));
   }
 
-  bool readFromConfig(JsonObject& root)
+  bool readFromConfig(JsonObject &root)
   {
     JsonObject top = root[FPSTR(_name)];
     bool configComplete = !top.isNull();
@@ -174,5 +211,5 @@ public:
   }
 };
 
-const char UsermodOledInfo::_name[]    PROGMEM = "OledInfo";
+const char UsermodOledInfo::_name[] PROGMEM = "OledInfo";
 const char UsermodOledInfo::_enabled[] PROGMEM = "enabled";
