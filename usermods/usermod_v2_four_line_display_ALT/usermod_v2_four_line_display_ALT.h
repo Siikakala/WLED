@@ -617,8 +617,8 @@ public:
     }
     else if (knownMode != effectCurrent || knownPalette != effectPalette)
     {
-      if (displayTurnedOff)
-        needRedraw = true;
+      if (displayTurnedOff){}
+        //needRedraw = true;
       else
       {
         if (knownPalette != effectPalette)
@@ -650,8 +650,8 @@ public:
     }
     else if (knownEffectSpeed != effectSpeed)
     {
-      if (displayTurnedOff)
-        needRedraw = true;
+      if (displayTurnedOff){}
+        //needRedraw = true;
       else
       {
         //updateSpeed();
@@ -661,8 +661,9 @@ public:
     }
     else if (knownEffectIntensity != effectIntensity)
     {
-      if (displayTurnedOff)
-        needRedraw = true;
+      if (displayTurnedOff){
+        //needRedraw = true;
+      }
       else
       {
         //updateIntensity();
