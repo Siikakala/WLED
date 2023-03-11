@@ -79,6 +79,17 @@
 #define WLED_MAX_COLOR_ORDER_MAPPINGS 10
 #endif
 
+#if defined(WLED_MAX_LEDMAPS) && (WLED_MAX_LEDMAPS > 32 || WLED_MAX_LEDMAPS < 10)
+  #undef WLED_MAX_LEDMAPS
+#endif
+#ifndef WLED_MAX_LEDMAPS
+  #ifdef ESP8266
+    #define WLED_MAX_LEDMAPS 10
+  #else
+    #define WLED_MAX_LEDMAPS 16
+  #endif
+#endif
+
 //Usermod IDs
 #define USERMOD_ID_RESERVED               0     //Unused. Might indicate no usermod present
 #define USERMOD_ID_UNSPECIFIED            1     //Default value for a general user mod that does not specify a custom ID
@@ -120,7 +131,9 @@
 #define USERMOD_ID_SD_CARD               37     //Usermod "usermod_sd_card.h"
 #define USERMOD_ID_PWM_OUTPUTS           38     //Usermod "usermod_pwm_outputs.h
 #define USERMOD_ID_SHT                   39     //Usermod "usermod_sht.h
-#define USERMOD_ID_OLEDINFO              40
+#define USERMOD_ID_KLIPPER               40     // Usermod Klipper percentage
+
+#define USERMOD_ID_OLEDINFO              60
 
 //Access point behavior
 #define AP_BEHAVIOR_BOOT_NO_CONN          0     //Open AP when no connection after boot
@@ -138,7 +151,7 @@
 #define CALL_MODE_FX_CHANGED     6     //no longer used
 #define CALL_MODE_HUE            7
 #define CALL_MODE_PRESET_CYCLE   8
-#define CALL_MODE_BLYNK          9
+#define CALL_MODE_BLYNK          9     //no longer used
 #define CALL_MODE_ALEXA         10
 #define CALL_MODE_WS_SEND       11     //special call mode, not for notifier, updates websocket only
 #define CALL_MODE_BUTTON_PRESET 12     //button/IR JSON preset/macro
